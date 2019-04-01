@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en" style="min-height: 100%;">
+
+<head>
+	<meta charset="UTF-8">
+	<title>Pong</title>
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+		integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+</head>
+
+<body style=" min-height: 100%;" onresize="adjustCanvas()">
+	<div class="container-fluid h-100">
+		<div class="row flex-grow-1">
+			<div class="col-2">
+				<div class="row">
+					<div class="col-12">
+						<h3>Controls</h3>
+					</div>
+				</div>
+				<div class="row">
+					<div class="col-12">
+						<p>Use arrows keys to move up and down</p>
+						<br>
+						<p>Press Space to Pause the Game</p>
+					</div>
+				</div>
+				<div class="row">
+					<div class="col-12">
+						<h5>Select Colors</h5>
+					</div>
+				</div>
+				<div class="row">
+					<div class="col-6">
+						Player Color
+						<br>
+						<input type="color" value="#fdffff" onchange="player.changeColor(this.value)"
+							onkeydown="return false;" />
+					</div>
+					<div class="col-6">
+						Computer Color
+						<br>
+						<input type="color" value="#fdffff" onchange="ai.changeColor(this.value)"
+							onkeydown="return false;" />
+
+					</div>
+				</div>
+				<div class="row">
+					<div class="col-12">
+						<h5>Select TPS Rate</h5>
+					</div>
+				</div>
+				<div class="row">
+					<div class="col-6">
+						<input class="radioTPS" type="radio" checked="checked" name="tps" value="144"
+							onchange="changeTps(this.value)" onkeydown="return null;" onkeypress="return null;"
+							onkeyup="return null;">144 tps<br>
+					</div>
+					<div class="col-6">
+						<input class="radioTPS" type="radio" name="tps" value="60" onchange="changeTps(this.value)"
+							onkeydown="return null;" onkeypress="return null;" onkeyup="return null;">60 tps<br>
+					</div>
+				</div>
+				<div class="row">
+					<div class="col-12">
+						<h5>Select FPS Rate</h5>
+					</div>
+				</div>
+				<div class="row">
+					<div class="col-6">
+						<input class="radioFPS" type="radio" checked="checked" name="fps" value="144"
+							onchange="changeFps(this.value)" onkeydown="return null;" onkeypress="return null;"
+							onkeyup="return null;">144 fps<br>
+					</div>
+					<div class="col-6">
+						<input class="radioFPS" type="radio" name="fps" value="60" onchange="changeFps(this.value)"
+							onkeydown="return null;" onkeypress="return null;" onkeyup="return null;">60 fps<br>
+					</div>
+				</div>
+				<div class="row">
+					<div class="col-12">
+						<h5>Ball Speed</h5>
+						<input id="speedRange" type="range" min="3" max="10" onchange="changeBallSpeed(this.value)"
+							onkeydown="return null;" onkeypress="return null;" onkeyup="return null;">
+							<br>
+							<span style="font-size: 11px;">(Updates after ball hits a paddle)</span>
+					</div>
+				</div>
+				<div class="row">
+						<div class="col-12">
+							<label for="ballTrail"><h5>Ball Trail: </h5></label>
+							<input id="ballTrail" type="checkbox"  onchange="enableBallTrail()"
+								onkeydown="return null;" onkeypress="return null;" onkeyup="return null;">
+						</div>
+					</div>
+			</div>
+			<div class="col-10 w-100" id="gameColumn">
+				<div style="height: 100%; width: 100%">
+					<canvas id="gameCanvas">Canvas should be here.</canvas>
+				</div>
+
+				<script>
+					var
+						/**
+						 * Constants
+						 */
+						pi = Math.PI,
+						UpArrow = 38,
+						DownArrow = 40,
+						SpaceBar = 32,
+						/**
+						 *	Global Variables
+						 */
+						paused = false,
+						isPausedPressed = false,
+						beep = new sound("beep.ogg"),
+						peep = new sound("peep.ogg"),
+						plop = new sound("plop.ogg"),
+						/**
+						 * Game elements
+						 */
+						canvas,
+						ctx,
+						keystate,
+						/**
+						 * The player paddle
+						 * 
+						 * @type {Object}
+						 */
+						player = {
+							points: 0,
+							x: null,
+							y: null,
+							width: 20,
+							height: 100,
+							color: "#FFFFFF",
+							/**
+							 * Update the position depending on pressed keys
+							 */
+							update: function () {
+								if (keystate[UpArrow]) this.y -= 6;
+								if (keystate[DownArrow]) this.y += 6;
+								// keep the paddle inside of the canvas
+								this.y = Math.max(Math.min(this.y, canvas.height - this.height), 0);
+							},
+							/**
+							 * Draw the player paddle to the canvas
+							 */
+							draw: function () {
+								ctx.beginPath();
+								ctx.fillStyle = this.color
+								ctx.rect(this.x, this.y, this.width, this.height);
+								ctx.fill()
+
+
+							},
+
+							changeColor: function (color) {
+
+								this.color = color
+
+							}
+						},
+						/**
+						 * The ai paddle
+						 * 
+						 * @type {Object}
+						 */
+						ai = {
+							points: 0,
+							x: null,
+							y: null,
+							width: 20,
+							height: 100,
+							color: "#FFFFFF",
+							difficulty: 0.07,
+							/**
+							 * Update the position depending on the ball position
+							 */
+							update: function () {
+								// calculate ideal position
+								var desty = ball.y - (this.height - ball.side) * 0.5;
+								// ease the movement towards the ideal position
+								this.y += (desty - this.y) * this.difficulty; //Just slower
+								// keep the paddle inside of the canvas
+								this.y = Math.max(Math.min(this.y, canvas.height - this.height), 0);
+							},
+							/**
+							 * Draw the ai paddle to the canvas
+							 */
+							draw: function () {
+								ctx.beginPath();
+								ctx.fillStyle = this.color
+								ctx.rect(this.x, this.y, this.width, this.height);
+								ctx.fill()
+								ctx.fillStyle = "#FFFFFF"
+							},
+
+							changeColor: function (color) {
+
+								this.color = color
+							}
+						},
+						/**	
+						 * The ball object
+						 * 
+						 * @type {Object}
+						 */
+						ball = {
+							x: null,
+							y: null,
+							vel: null,
+							side: 15,
+							speed: 5,
+							ballTrail: [],
+							frameCounterForBallTrail: 0,
+							ballTrailEnabled: false,
+							/**
+							 * Serves the ball towards the specified side
+							 * 
+							 * @param  {number} side 1 right
+							 *                       -1 left
+							 */
+							serve: function (side) {
+								// set the x and y position
+								var r = Math.random();
+								this.x = side === 1 ? player.x + player.width : ai.x - this.side;
+								this.y = (canvas.height - this.side) * r;
+								// calculate out-angle, higher/lower on the y-axis =>
+								// steeper angle
+								var phi = 0.1 * pi * (1 - 2 * r);
+								// set velocity direction and magnitude
+								this.vel = {
+									x: side * this.speed * Math.cos(phi),
+									y: this.speed * Math.sin(phi)
+								}
+							},
+							/**
+							 * Update the ball position and keep it within the canvas
+							 */
+							update: function () {
+								//For the ball trail, we want to keep the 25 latest frame positions for the ball
+								if (this.frameCounterForBallTrail > 1) {
+									this.ballTrail.length = 4; //trucuate to last 25 positions
+									this.ballTrail.unshift({x: this.x, y: this.y})
+									this.frameCounterForBallTrail = 0;
+								}
+								this.frameCounterForBallTrail++
+								// update position with current velocity
+								this.x += this.vel.x;
+								this.y += this.vel.y;
+								// check if out of the canvas in the y direction
+								if (0 > this.y || this.y + this.side > canvas.height) {
+									// calculate and add the right offset, i.e. how far
+									// inside of the canvas the ball is
+									var offset = this.vel.y < 0 ? 0 - this.y : canvas.height - (this.y + this.side);
+									this.y += 2 * offset;
+									// mirror the y velocity
+									this.vel.y *= -1;
+								}
+								// helper function to check intesectiont between two
+								// axis aligned bounding boxex (AABB)
+								var AABBIntersect = function (ax, ay, aw, ah, bx, by, bw, bh) {
+									return ax < bx + bw && ay < by + bh && bx < ax + aw && by < ay + ah;
+								};
+								// check againts target paddle to check collision in x
+								// direction
+								var pdle = this.vel.x < 0 ? player : ai;
+								if (AABBIntersect(pdle.x, pdle.y, pdle.width, pdle.height,
+										this.x, this.y, this.side, this.side)) {
+									// set the x position and calculate reflection angle
+									this.x = pdle === player ? player.x + player.width : ai.x - this.side;
+									var n = (this.y + this.side - pdle.y) / (pdle.height + this.side);
+									var phi = 0.25 * pi * (2 * n - 1); // pi/4 = 45
+									// calculate smash value and update velocity
+									var smash = Math.abs(phi) > 0.2 * pi ? 1.5 : 1;
+									this.vel.x = smash * (pdle === player ? 1 : -1) * this.speed * Math.cos(phi);
+									this.vel.y = smash * this.speed * Math.sin(phi);
+									beep.play()
+								}
+								// reset the ball when ball outside of the canvas in the
+								// x direction
+								if (0 > this.x + this.side) {
+									addPoint(2)
+									this.serve(pdle === player ? 1 : -1);
+								}
+
+								if (this.x > canvas.width) {
+									addPoint(1)
+									this.serve(pdle === player ? 1 : -1);
+								}
+							},
+							/**
+							 * Draw the ball to the canvas
+							 */
+							draw: function () {
+								if (this.ballTrailEnabled){
+									var trans = 1;
+									this.ballTrail.forEach(position => {
+										ctx.fillStyle = "rgba(255,255,255," + trans + ")";
+										ctx.fillRect(position.x, position.y, this.side, this.side)
+										trans = trans - 0.18
+										ctx.fillStyle = "#FFFFFF";
+									})
+								}else {
+									ctx.fillRect(this.x, this.y, this.side, this.side);
+								}
+								
+							}
+						};
+
+					pauseScreen = {
+						text: "Paused",
+						x: 500,
+						y: 300,
+
+
+						draw: function () {
+							ctx.beginPath();
+							ctx.font = "bold 100px Courier"
+							ctx.textAlign = "center"
+							ctx.fillText("Paused", (canvas.width / 2), (canvas.height / 2))
+							ctx.stroke();
+						}
+					}
+
+					scoreboard = {
+						x: 400,
+						y: 200,
+
+
+						draw: function () {
+
+							ctx.beginPath();
+							ctx.lineWidth = 0;
+							ctx.font = "bold 60px Courier"
+							ctx.textAlign = "center"
+							score = player.points + "   " + ai.points
+							ctx.fillText(score, (canvas.width / 2), this.y / 2)
+							ctx.stroke();
+
+
+						}
+					}
+
+
+					function enableBallTrail() {
+						ball.ballTrailEnabled = !ball.ballTrailEnabled
+					}
+
+					function changeBallSpeed(speed) {
+						ball.speed = speed
+						document.getElementById("speedRange").blur();
+					}
+
+					function sound(source) {
+						this.sound = document.createElement("audio")
+						this.sound.src = source
+						this.sound.setAttribute("preload", "auto")
+						document.body.appendChild(this.sound);
+						this.play = function () {
+							this.sound.play();
+						}
+						this.stop = function () {
+							this.sound.pause();
+						}
+					}
+
+					var tpsCounter = {
+						tps: 0,
+
+
+
+						draw: function () {
+							ctx.beginPath();
+							ctx.lineWidth = 0;
+							ctx.font = "12px Courier"
+							ctx.textAlign = "center"
+							ctx.fillText(this.tps + " tps", (canvas.width - 50), 70)
+							ctx.stroke();
+						}
+					}
+
+					var fpsCounter = {
+						fps: 0,
+
+
+
+						draw: function () {
+							ctx.beginPath();
+							ctx.lineWidth = 0;
+							ctx.font = "12px Courier"
+							ctx.textAlign = "center"
+							ctx.fillText(this.fps + " fps", (canvas.width - 50), 50)
+							ctx.stroke();
+						}
+
+					}
+
+					var frameCount = 0;
+					var fps, fpsInterval, startTime, now, then, elapsed;
+					var tpsInterval, fpsTimeout;
+
+					function changeTps(tps) {
+						
+						clearInterval(tpsInterval)
+						startBackendUpdating(tps)
+						buttons = document.getElementsByClassName("radioTPS")
+						buttons[0].blur();
+						buttons[1].blur();
+					}
+
+					function changeFps(fps) {
+						frameCount = 0;
+						fps, fpsInterval, startTime, now, then, elapsed = 0;
+						clearTimeout(fpsTimeout)
+						startAnimation(fps)
+
+						buttons = document.getElementsByClassName("radioFPS")
+						buttons[0].blur();
+						buttons[1].blur();
+
+					}
+
+
+
+
+
+					function startAnimation(fps) {
+						fpsInterval = 1000 / fps;
+						then = Date.now();
+						startTime = then;
+						animate()
+					}
+
+					function animate() {
+
+						//Use setTimeout as a callback instead of requestAnimationFrame, as requestAnimationFrame locks you to monitor hz rate.
+						fpsTimeout = setTimeout(animate)
+
+						now = Date.now();
+						elapsed = now - then;
+
+						//If enough time has passed for us to draw another frame
+						if (elapsed > fpsInterval) {
+
+							then = now - (elapsed % fpsInterval)
+
+							//Redraw the screen
+							draw();
+
+							//Update the FPS counter
+							var sinceStart = now - startTime;
+							var currentFps = Math.round(1000 / (sinceStart / ++frameCount) * 100) / 100;
+							fpsCounter.fps = currentFps
+						}
+					}
+
+
+
+					function startBackendUpdating(updatePerSecond) {
+						tpsCounter.tps = updatePerSecond
+						var updateRate = 1000 / updatePerSecond
+
+						tpsInterval = setInterval(update, updateRate);
+					}
+
+
+					/**
+					 * Starts the game
+					 */
+					function main() {
+						// create, initiate and append game canvas
+						canvas = document.getElementById("gameCanvas")
+						canvas.style.width = "100%"
+						canvas.style.height = "100%"
+						canvas.width = canvas.offsetWidth;
+						canvas.height = canvas.offsetHeight;
+						ctx = canvas.getContext("2d");
+						keystate = {};
+						// keep track of keyboard presses
+						document.addEventListener("keydown", function (evt) {
+							keystate[evt.keyCode] = true;
+						});
+						document.addEventListener("keyup", function (evt) {
+							delete keystate[evt.keyCode];
+						});
+						init(); // initiate game objects
+						// game loop function
+
+
+						//Start update interval
+
+						//We want to always update at 60 times per second on the backend, regardless of the speed that we render at.
+						//This is standard for simple games, however, competitive games such as csgo usually run at 144 tps
+
+						//Slow Updating
+						//startBackendUpdating(60)
+
+						//Fast Updating
+						startBackendUpdating(144)
+
+						//Start animating at 144 fps if possible
+						startAnimation(144);
+
+						//window.setInterval(update, 16.6)
+						//window.setInterval(draw, 16.6)
+						// var loop = function() {
+						// 	window.requestAnimationFrame(canvas);
+						// };
+						// window.requestAnimationFrame(loop, canvas);
+					}
+
+
+					function addPoint(scorer) {
+						if (scorer === 1) {
+							player.points = player.points + 1
+						} else {
+							ai.points = ai.points + 1
+						}
+						peep.play()
+						//console.log("Player has ", player.points, " Computer has ", ai.points)
+					}
+					/**
+					 * Initatite game objects and set start positions
+					 */
+					function init() {
+						player.x = player.width;
+						player.y = (canvas.height - player.height) / 2;
+						ai.x = canvas.width - (player.width + ai.width);
+						ai.y = (canvas.height - ai.height) / 2;
+						ball.serve(1);
+					}
+					/**
+					 * Update all game objects
+					 */
+					function update() {
+						//if player press space, and holds it down, 
+						//they should remain paused
+						if (keystate[SpaceBar]) {
+							if (isPausedPressed) {
+
+							} else {
+								paused = !paused;
+								isPausedPressed = true
+							}
+						} else if (!keystate[SpaceBar] && isPausedPressed) {
+							isPausedPressed = !isPausedPressed
+						}
+						//We don't want to update anything if paused is pressed.
+						if (paused) return;
+						ball.update();
+						player.update();
+						ai.update();
+					}
+					/**
+					 * Clear canvas and draw all game objects and net
+					 */
+					function draw() {
+						ctx.fillRect(0, 0, canvas.width, canvas.height);
+						ctx.save();
+						ctx.fillStyle = "#fff";
+						tpsCounter.draw();
+						fpsCounter.draw();
+						ball.draw();
+						player.draw();
+						ai.draw();
+						scoreboard.draw();
+						if (paused) pauseScreen.draw();
+						// draw the net
+						var w = 4;
+						var x = (canvas.width - w) * 0.5;
+						var y = 0;
+						var step = canvas.height / 20; // how many net segments
+						while (y < canvas.height) {
+							ctx.fillRect(x, y + step * 0.25, w, step * 0.5);
+							y += step;
+						}
+						ctx.restore();
+					}
+
+					function adjustCanvas() {
+						canvas.style.width = "100%"
+						canvas.style.height = "100%"
+						canvas.width = canvas.offsetWidth;
+						canvas.height = canvas.offsetHeight;
+						//AI needs to also have it's position updated
+						ai.x = canvas.width - (player.width + ai.width);
+					}
+					// start and run the game
+					main();
+				</script>
+			</div>
+		</div>
+	</div>
+
+
+	<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+		integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous">
+	</script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
+		integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous">
+	</script>
+	<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+		integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous">
+	</script>
+</body>
+
+</html>
