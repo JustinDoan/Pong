@@ -92,6 +92,24 @@
 								onkeydown="return null;" onkeypress="return null;" onkeyup="return null;">
 						</div>
 					</div>
+					<div class="row">
+						<div class="col-12">
+							<h5>AI Difficulty</h5>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col-12">
+							<input class="radioDifficulty" type="radio"  name="difficulty" value="0.01"
+							onchange="changeDifficulty(this.value)" onkeydown="return null;" onkeypress="return null;"
+							onkeyup="return null;">Easy
+							<input class="radioDifficulty" type="radio" checked="checked" name="difficulty" value="0.04"
+							onchange="changeDifficulty(this.value)" onkeydown="return null;" onkeypress="return null;"
+							onkeyup="return null;">Normal
+							<input class="radioDifficulty" type="radio"  name="difficulty" value="0.08"
+							onchange="changeDifficulty(this.value)" onkeydown="return null;" onkeypress="return null;"
+							onkeyup="return null;">Insane
+						</div>
+					</div>
 			</div>
 			<div class="col-10 w-100" id="gameColumn">
 				<div style="height: 100%; width: 100%">
@@ -172,7 +190,7 @@
 							width: 20,
 							height: 100,
 							color: "#FFFFFF",
-							difficulty: 0.07,
+							difficulty: 0.04,
 							/**
 							 * Update the position depending on the ball position
 							 */
@@ -342,6 +360,13 @@
 						}
 					}
 
+					function changeDifficulty(diffValue) {
+						ai.difficulty = diffValue;
+						buttons = document.getElementsByClassName('radioDifficulty')
+						buttons[0].blur();
+						buttons[1].blur();
+						buttons[2].blur();
+					}
 
 					function enableBallTrail() {
 						ball.ballTrailEnabled = !ball.ballTrailEnabled
@@ -363,6 +388,13 @@
 						this.stop = function () {
 							this.sound.pause();
 						}
+					}
+
+
+					var mouseController = {
+						inCanvas: false,
+						x: 0,
+						y: 0
 					}
 
 					var tpsCounter = {
@@ -464,6 +496,13 @@
 						tpsInterval = setInterval(update, updateRate);
 					}
 
+					function getMousePos(canvas, evt) {
+						var rect = canvas.getBoundingClientRect();
+						return {
+							x: evt.clientX - rect.left,
+							y: evt.clientY - rect.top
+						};
+					}
 
 					/**
 					 * Starts the game
@@ -484,6 +523,17 @@
 						document.addEventListener("keyup", function (evt) {
 							delete keystate[evt.keyCode];
 						});
+						canvas.onmouseover = function(evt) {
+							mouseController.inCanvas = true
+						};
+						canvas.addEventListener("mousemove", function (evt) {
+							mouseLocation = getMousePos(canvas, evt)
+							mouseController.x = mouseLocation.x
+							mouseController.y = mouseLocation.y
+						})
+						canvas.onmouseout = function(evt) {
+							mouseController.inCanvas = false
+						}
 						init(); // initiate game objects
 						// game loop function
 
@@ -548,6 +598,12 @@
 						}
 						//We don't want to update anything if paused is pressed.
 						if (paused) return;
+						//We want to get the mouse current position
+						if (mouseController.inCanvas) {
+							//set player y value to mouse y
+							player.y = mouseController.y - player.height/2
+						}
+
 						ball.update();
 						player.update();
 						ai.update();
